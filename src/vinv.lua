@@ -1,5 +1,6 @@
 vinv = {}
 
+
 function vinv.moveItems(src, dst, src_slot)
     local src_item = src.getItemDetail(src_slot)
     if src_item == nil then return 0, {} end
@@ -7,8 +8,10 @@ function vinv.moveItems(src, dst, src_slot)
     local total_moved = 0
     local slots_changed = {}
 
-    for i=1, src.size() do
-        if (src[i] == nil) or (src[i].nbt == src_item.nbt) then
+    local dst_list = dst.list()
+
+    for i=1, dst.size() do
+        if (dst_list[i] == nil) or (dst_list[i].name == src_item.name) then
             local di, ds = dst.getRealLoc(i)
             local moved = src.invs[si].pushItems(peripheral.getName(dst.invs[di]), ss, 64, ds)
             if moved > 0 then
@@ -16,6 +19,7 @@ function vinv.moveItems(src, dst, src_slot)
                 total_moved = total_moved + moved
                 if total_moved >= src_item.count then return total_moved, slots_changed end
             end
+        else
         end
     end
     return total_moved, slots_changed

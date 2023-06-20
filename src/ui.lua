@@ -48,6 +48,25 @@ ui.new = function(children)
             self.propagate("recieveEvent", os.pullEvent())
         end
     end
+
+    function self.realPos(x, y)
+        local offs_x, offs_y = 0, 0
+        if self.parent.term == term then --parent's term is same as current
+            local x0, y0 = self.parent.realPos()
+            offs_x, offs_y = offs_x+x0, offs_y+y0
+        elseif self.parent.term.getPosition then --parent's term is a window
+            local x0, y0 = self.parent.realPos()
+            local x1, y1 = self.parent.term.getPosition()
+            offs_x, offs_y = offs_x+x0+x1-1, offs_y+y0+y1-1
+        else --parent's term is the root
+            return 0, 0
+        end
+        if x == nil then
+            return offs_x, offs_y
+        else
+            return x+offs_x, y+offs_y
+        end
+    end
     
     self.x, self.y = 1, 1
     self.width, self.height = 0, 0
@@ -62,6 +81,7 @@ ui.new = function(children)
 
     return self
 end
+
 
 ui.win = function(argt)
     local self = ui.new(argt.children)
@@ -83,7 +103,9 @@ ui.win = function(argt)
     
 
     function self.draw()
+
         self.term = window.create(self.parent.term, self.x, self.y, self.width, self.height)
+
         for _, child in pairs(self.children) do
             child.term = self.term
         end
@@ -103,10 +125,10 @@ ui.list = function(argt)
     local self = ui.win(argt)
 
     local function space()
-        local list_height = 0
+        local list_height = 1
         for pos, child in ipairs(self.children) do
-            child.x = self.x
-            child.y = list_height + self.y
+            child.x = 1
+            child.y = list_height
             list_height = list_height + child.height
         end
     end
@@ -133,9 +155,10 @@ ui.button = function(argt)
     self.action2 = argt.action2 or function() end
 
     function self.recieveEvent(event, button, x, y)
-        if (event == "mouse_click") and (x >= self.x and x < self.x + self.width) and (y >= self.y and y < self.y + self.height) then
+        local real_x, real_y = self.realPos(self.x, self.y)
+        if (event == "mouse_click") and (x >= real_x and x < real_x + self.width) and (y >= real_y and y < real_y + self.height) then
             if button == 1 then
-                mprint(self.term.getPosition())
+                --mprint(self.label)
                 self.action1()
             elseif button == 2 then
                 self.action2()
@@ -144,11 +167,9 @@ ui.button = function(argt)
     end
 
     function self.draw()
-        local offs_x, offs_y = 0,0
-        if self.term.getPosition() then offs_x, offs_y = self.term.getPosition() end
         self.term.setTextColor(self.text_color)
         self.term.setBackgroundColor(self.bg_color)
-        self.term.setCursorPos(self.x-offs_x+1, self.y-offs_y+1)
+        self.term.setCursorPos(self.x, self.y)
         self.term.write(ccs.ensure_width(self.label, self.width))
     end
     
@@ -169,25 +190,27 @@ ui.text_box = function(argt)
     local read_str = ""
 
     function self.draw()
-        local offs_x, offs_y = 0,0
-        if self.term.getPosition() then offs_x, offs_y = self.term.getPosition() end
         self.term.setTextColor(self.text_color)
         self.term.setBackgroundColor(self.bg_color)
-        self.term.setCursorPos(self.x-offs_x+1, self.y-offs_y+1)
+        self.term.setCursorPos(self.x, self.y)
         self.term.write(ccs.ensure_width(read_str .. "_", self.width))
     end
 
     local function newChar(char)
-        term.setCursorPos(self.x + #read_str, self.y)
+        self.term.setTextColor(self.text_color)
+        self.term.setBackgroundColor(self.bg_color)
+        self.term.setCursorPos(self.x + #read_str, self.y)
         read_str = read_str..char
-        term.write(char.."_")
+        self.term.write(char.."_")
     end
     
     local function newKey(key, is_held)
         if key == keys.backspace then
             read_str = string.sub(read_str, 1, -2)
-            term.setCursorPos(self.x + #read_str, self.y)
-            term.write("_ ")
+            self.term.setTextColor(self.text_color)
+            self.term.setBackgroundColor(self.bg_color)
+            self.term.setCursorPos(self.x + #read_str, self.y)
+            self.term.write("_ ")
         elseif key == keys.enter then
             self.onEnter(read_str)
         end
