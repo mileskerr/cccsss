@@ -28,14 +28,18 @@ ui.new = function(children)
     function self.propagate(fn_name, ...)
         local fn = self[fn_name]
         fn(unpack(arg))
-        for name, child in pairs(self.children) do
+        for pos, child in pairs(self.children) do
             child.propagate(fn_name, unpack(arg))
         end
     end
     
-    function self.addChild(child)
+    function self.addChild(child, pos)
         if child == nil then error("child can't be nil",2) end
-        table.insert(self.children, child)
+        if pos == nil then
+            table.insert(self.children, child)
+        else
+            table.insert(self.children, pos, child)
+        end
         child.parent = self
     end
     
@@ -52,7 +56,7 @@ ui.new = function(children)
     
     children = children or {}
     self.children = {}
-    for name, child in pairs(children) do
+    for pos, child in pairs(children) do
         self.addChild(child)
     end
 
@@ -66,6 +70,16 @@ ui.win = function(argt)
     self.width = argt.width or 1
     self.height = argt.height or 1
     self.clear_color = argt.clear_color or colors.black
+
+    function self.write(str, line, text_color, bg_color)
+        line = 1 or line
+        text_color = text_color or colors.white
+        bg_color = bg_color or self.clear_color
+        self.term.setTextColor(text_color)
+        self.term.setBackgroundColor(bg_color)
+        self.term.setCursorPos(1, line)
+        self.term.write(str)
+    end
     
 
     function self.draw()
@@ -78,9 +92,8 @@ ui.win = function(argt)
     end
 
     local addChild = self.addChild
-    function self.addChild(child)
-        if child == nil then error("child can't be nil",2) end
-        addChild(child)
+    function self.addChild(child, pos)
+        addChild(child, pos)
         child.term = self.term
     end
     return self
@@ -89,18 +102,26 @@ end
 ui.list = function(argt)
     local self = ui.win(argt)
 
-    local list_height = 0
-    for name, child in pairs(self.children) do
-        child.x = child.x + self.x - 1
-        child.y = child.y + list_height + self.y - 1
-        list_height = list_height + child.height
+    local function space()
+        local list_height = 0
+        for pos, child in ipairs(self.children) do
+            child.x = self.x
+            child.y = list_height + self.y
+            list_height = list_height + child.height
+        end
+    end
+
+    local draw = self.draw
+    function self.draw()
+        space()
+        draw()
     end
 
     return self
 end
 
 ui.button = function(argt)
-    local self = ui.new(argt.children)
+    local self = ui.new()
     
     self.x, self.y = argt.x or 1, argt.y or 1
     self.width = argt.width or 1
@@ -134,7 +155,51 @@ ui.button = function(argt)
     return self
 end
 
-ui.text_box = function(parent) 
-    local self = ui.new(parent)
+ui.text_box = function(argt) 
+    local self = ui.new()
+
+    self.x, self.y = argt.x or 1, argt.y or 1
+    self.width = argt.width or 1
+    self.height = argt.height or 1
+    self.text_color = argt.text_color or colors.white
+    self.bg_color = argt.bg_color or colors.gray
+    self.onEnter = function() end
+    self.onChange = function() end
+
+    local read_str = ""
+
+    function self.draw()
+        local offs_x, offs_y = 0,0
+        if self.term.getPosition() then offs_x, offs_y = self.term.getPosition() end
+        self.term.setTextColor(self.text_color)
+        self.term.setBackgroundColor(self.bg_color)
+        self.term.setCursorPos(self.x-offs_x+1, self.y-offs_y+1)
+        self.term.write(ccs.ensure_width(read_str .. "_", self.width))
+    end
+
+    local function newChar(char)
+        term.setCursorPos(self.x + #read_str, self.y)
+        read_str = read_str..char
+        term.write(char.."_")
+    end
+    
+    local function newKey(key, is_held)
+        if key == keys.backspace then
+            read_str = string.sub(read_str, 1, -2)
+            term.setCursorPos(self.x + #read_str, self.y)
+            term.write("_ ")
+        elseif key == keys.enter then
+            self.onEnter(read_str)
+        end
+    end
+
+    function self.recieveEvent(event, ...)
+        if event == "char" then
+            newChar(unpack(arg))
+        elseif event == "key" then
+            newKey(unpack(arg))
+        end
+    end
+
     return self
 end
