@@ -17,8 +17,6 @@ local archive = vinv.new("create:item_vault_2", "minecraft:chest_0");
 
 local store = storage.new(io, archive)
 
-local filter = function() return false end
-
 local categories = {
     wood = {
         oak = {},
@@ -27,7 +25,9 @@ local categories = {
             logs = {}
         },
     },
-    stone = {},
+    stone = {
+        diorite = {},
+    },
     tools = {
         pickaxes = {},
         axes = {},
@@ -40,6 +40,7 @@ local addCategories
 local category_index = {
     ["minecraft:stone"] = categories.stone,
     ["minecraft:cobblestone"] = categories.stone,
+    ["minecraft:polished_diorite"] = categories.stone.diorite,
     ["minecraft:oak_planks"] = categories.wood.oak,
     ["minecraft:birch_planks"] = categories.wood.birch,
     ["minecraft:spruce_planks"] = categories.wood.spruce,
@@ -75,6 +76,7 @@ local categories_window do
 
         categories_window.addChild(button.opened_list)
         categories_window.propagate("draw")
+        term.setCursorPos(3,3)
     end
 
     function new_button(name, category, level)
@@ -95,12 +97,13 @@ local categories_window do
 
             if deselected then
                 sel_button(self, category)
-                filter = function(item)
+
+                local filter = function(item)
                     if category_index[item.name] == category then
                         return true
                     end
                 end
-                os.queueEvent("filter_changed")
+                os.queueEvent("filter_changed", filter)
             end
         end
         return self
@@ -167,14 +170,15 @@ categories_window.propagate("draw")
 
 
 function extractor()
-    while true do
-        os.pullEvent("filter_changed")
-        local t = os.clock()
-        mprint("filtering")
-        store.extract(filter)
-        os.queueEvent("done_filtering")
-        mprint("done -- "..os.clock()-t.."s")
-    end
+
+    local _, filter = os.pullEvent("filter_changed")
+    print(filter) --> nil
+
+    local t = os.clock()
+    mprint("filtering")
+    store.extract(filter)
+    os.queueEvent("done_filtering")
+    mprint("done -- "..os.clock()-t.."s")
 end
 
 parallel.waitForAll(interface.start, extractor)
